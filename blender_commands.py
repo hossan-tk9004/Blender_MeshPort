@@ -1,16 +1,17 @@
-"""Blender-side scripts executed via official Blender Lab MCP TCP protocol.
+"""Fixed Blender-side scripts for the official Blender Lab MCP TCP transport.
 
-Each script must assign a JSON-serializable value to the top-level ``result``.
-Scripts are fixed templates; parameter values are serialized as Python literals.
+Scripts assign a JSON-serializable dictionary to the top-level ``result``.
+Python ``repr`` formatting safely embeds user-selected names and file paths.
 """
 
 
 def list_meshes_code():
+    """Build a Blender script returning all mesh objects in the active scene."""
     return '''import bpy
 meshes = [
-    {'name': o.name, 'vertices': len(o.data.vertices),
-     'faces': len(o.data.polygons)}
-    for o in bpy.context.scene.objects if o.type == 'MESH'
+    {'name': obj.name, 'vertices': len(obj.data.vertices),
+     'faces': len(obj.data.polygons)}
+    for obj in bpy.context.scene.objects if obj.type == 'MESH'
 ]
 meshes.sort(key=lambda item: item['name'].lower())
 result = {'meshes': meshes}
@@ -18,37 +19,45 @@ result = {'meshes': meshes}
 
 
 def export_fbx_code(names, filepath, bones, textures, animation):
+    """Build a selection-only export script that restores Blender UI state."""
     return '''import bpy
 import os
 from pathlib import Path
+
 names = {names!r}
 filepath = {filepath!r}
 with_bones = {bones!r}
 with_textures = {textures!r}
 with_animation = {animation!r}
+
+view_layer = bpy.context.view_layer
 original_selection = list(bpy.context.selected_objects)
-original_active = bpy.context.view_layer.objects.active
+original_active = view_layer.objects.active
+original_mode = original_active.mode if original_active else 'OBJECT'
+
 try:
-    scene_objects = {{ob.name: ob for ob in bpy.context.scene.objects}}
-    objects = [scene_objects.get(n) for n in names]
-    if not objects or any(ob is None or ob.type != 'MESH' for ob in objects):
+    scene_objects = {{obj.name: obj for obj in bpy.context.scene.objects}}
+    objects = [scene_objects.get(name) for name in names]
+    if not objects or any(obj is None or obj.type != 'MESH' for obj in objects):
         raise RuntimeError('Selected Blender mesh is unavailable in the current scene')
+
     if with_bones:
-        extras = set(objects)
+        extra = set(objects)
         for mesh in objects:
-            for mod in mesh.modifiers:
-                if mod.type == 'ARMATURE' and mod.object:
-                    extras.add(mod.object)
-            parent = mesh.parent
-            if parent and parent.type == 'ARMATURE':
-                extras.add(parent)
-        objects = list(extras)
+            for modifier in mesh.modifiers:
+                if modifier.type == 'ARMATURE' and modifier.object:
+                    extra.add(modifier.object)
+            if mesh.parent and mesh.parent.type == 'ARMATURE':
+                extra.add(mesh.parent)
+        objects = list(extra)
+
     if bpy.context.object and bpy.context.object.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
-    for ob in objects:
-        ob.select_set(True)
-    bpy.context.view_layer.objects.active = objects[0]
+    for obj in objects:
+        obj.select_set(True)
+    view_layer.objects.active = objects[0]
+
     Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.fbx(
         filepath=filepath, use_selection=True,
@@ -60,32 +69,47 @@ try:
         raise RuntimeError('Blender FBX exporter created no data')
     result = {{'exported': filepath, 'objects': len(objects)}}
 finally:
+    # Keep cleanup from masking the original exception whenever possible.
+    if bpy.context.object and bpy.context.object.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
-    for ob in original_selection:
-        if ob.name in bpy.data.objects:
-            ob.select_set(True)
+    for obj in original_selection:
+        if obj.name in bpy.data.objects:
+            obj.select_set(True)
     if original_active and original_active.name in bpy.data.objects:
-        bpy.context.view_layer.objects.active = original_active
-'''.format(names=list(names), filepath=str(filepath).replace('\\', '/'),
-           bones=bool(bones), textures=bool(textures), animation=bool(animation))
+        view_layer.objects.active = original_active
+        if original_mode != 'OBJECT':
+            try:
+                bpy.ops.object.mode_set(mode=original_mode)
+            except (RuntimeError, TypeError, ValueError):
+                # A deleted/incompatible object or context may prevent restoration.
+                pass
+'''.format(
+        names=list(names), filepath=str(filepath).replace('\\', '/'),
+        bones=bool(bones), textures=bool(textures), animation=bool(animation),
+    )
 
 
 def import_fbx_code(filepath, bones, textures, animation):
+    """Build a Blender FBX import script; retain previously supported options."""
     return '''import bpy
 filepath = {filepath!r}
 with_bones = {bones!r}
 with_animation = {animation!r}
+
 if bpy.context.object and bpy.context.object.mode != 'OBJECT':
     bpy.ops.object.mode_set(mode='OBJECT')
 old_objects = set(bpy.data.objects)
 bpy.ops.import_scene.fbx(filepath=filepath, use_anim=with_animation,
                          ignore_leaf_bones=True)
-new_objects = [ob for ob in bpy.data.objects if ob not in old_objects]
+new_objects = [obj for obj in bpy.data.objects if obj not in old_objects]
 if not with_bones:
-    for ob in list(new_objects):
-        if ob.type == 'ARMATURE':
-            bpy.data.objects.remove(ob, do_unlink=True)
-            new_objects.remove(ob)
-result = {{'imported': [ob.name for ob in new_objects]}}
-'''.format(filepath=str(filepath).replace('\\', '/'),
-           bones=bool(bones), animation=bool(animation))
+    for obj in list(new_objects):
+        if obj.type == 'ARMATURE':
+            bpy.data.objects.remove(obj, do_unlink=True)
+            new_objects.remove(obj)
+result = {{'imported': [obj.name for obj in new_objects]}}
+'''.format(
+        filepath=str(filepath).replace('\\', '/'),
+        bones=bool(bones), animation=bool(animation),
+    )

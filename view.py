@@ -14,118 +14,133 @@ class MeshPortView:
         self.build()
 
     def build(self):
+        """Build the original Maya cmds layout without changing its geometry."""
         if cmds.window(WINDOW_NAME, exists=True):
             cmds.deleteUI(WINDOW_NAME, window=True)
         self.window = cmds.window(
-                        WINDOW_NAME, title=config.APP_TITLE,
-                        sizeable=True, widthHeight=(480, 640)
-                    )
+            WINDOW_NAME, title=config.APP_TITLE,
+            sizeable=True, widthHeight=(480, 640),
+        )
         with LayoutManager(cmds.formLayout()) as root:
             with LayoutManager(cmds.columnLayout(
-                                    adjustableColumn=True,
-                                    rowSpacing=7
-                                )) as headder:
+                adjustableColumn=True, rowSpacing=7,
+            )) as header:
                 cmds.separator(height=6, style='none')
-                cmds.text(label='Blender MCP Connection', align='left', font='boldLabelFont')
+                cmds.text(
+                    label='Blender MCP Connection',
+                    align='left', font='boldLabelFont',
+                )
+
             with LayoutManager(cmds.rowLayout(
-                                    numberOfColumns=3,
-                                    adjustableColumn=2,
-                                    #columnWidth3=(95, 100, 340)
-                                )) as BlenderConnect:
+                numberOfColumns=3, adjustableColumn=2,
+            )) as blender_connect:
                 cmds.text(label='Blender Port:')
-                self.port = cmds.intField(value=settings.get_int('port', config.DEFAULT_PORT),
-                                        minValue=1024, maxValue=65535)
+                self.port = cmds.intField(
+                    value=settings.get_int('port', config.DEFAULT_PORT),
+                    minValue=1024, maxValue=65535,
+                )
                 self.check_button = cmds.button(label='Check Connection')
+
             with LayoutManager(cmds.columnLayout(
-                                                adjustableColumn=True,
-                                                rowSpacing=7
-                                            )) as workSpace:
+                adjustableColumn=True, rowSpacing=7,
+            )) as workspace:
                 self.status = cmds.text(label='Not checked', align='left')
                 cmds.separator(style='in')
-                cmds.text(label='Workspace Folder (transfer files are retained)',
-                        align='left', font='boldLabelFont')
-                
+                cmds.text(
+                    label='Workspace Folder (transfer files are retained)',
+                    align='left', font='boldLabelFont',
+                )
+
             with LayoutManager(cmds.rowLayout(
-                                numberOfColumns=2,
-                                adjustableColumn=1,
-                                #columnWidth2=(430, 100)
-                            )) as workSpaceEditor:
-                self.workspace_edit = cmds.textField(text=settings.get_string('workspace_path'))
+                numberOfColumns=2, adjustableColumn=1,
+            )) as workspace_editor:
+                self.workspace_edit = cmds.textField(
+                    text=settings.get_string('workspace_path'),
+                )
                 self.browse_workspace_button = cmds.button(label='Browse...')
 
             with LayoutManager(cmds.columnLayout(
-                                                adjustableColumn=True,
-                                                rowSpacing=7
-                                            )) as refreshButton:
+                adjustableColumn=True, rowSpacing=7,
+            )) as refresh_section:
                 cmds.separator(style='in')
-                self.refresh_button = cmds.button(label='Refresh Blender Mesh List', height=30)
+                self.refresh_button = cmds.button(
+                    label='Refresh Blender Mesh List', height=30,
+                )
                 cmds.text(label='Blender meshes (multi-select):', align='left')
+                self.meshes = cmds.textScrollList(
+                    allowMultiSelection=True, height=160,
+                )
 
-                # textScrollList supports multiselection in Maya 2024/2025.
-                self.meshes = cmds.textScrollList(allowMultiSelection=True, height=160)
             with LayoutManager(cmds.frameLayout(
-                                label='FBX Options',
-                                collapsable=False,
-                                marginWidth=8,
-                                marginHeight=6
-                            )) as fbxOptions:
-                self.bones = cmds.checkBox(label='Include Bones / Skin', value=True)
-                self.textures = cmds.checkBox(label='Embed Textures (FBX)', value=False)
-                self.animation = cmds.checkBox(label='Include Animation', value=False)
+                label='FBX Options', collapsable=False,
+                marginWidth=8, marginHeight=6,
+            )) as fbx_options:
+                self.bones = cmds.checkBox(
+                    label='Include Bones / Skin', value=True,
+                )
+                self.textures = cmds.checkBox(
+                    label='Embed Textures (FBX)', value=False,
+                )
+                self.animation = cmds.checkBox(
+                    label='Include Animation', value=False,
+                )
 
             with LayoutManager(cmds.paneLayout(
-                                configuration='vertical2',
-                                ps=[(1, 50, 100), (2, 50, 100)]
-                            )) as Sender:
-                self.pull_button = cmds.button(label='Import to Maya', height=34)
-                self.push_button = cmds.button(label='Send to Blender (Selection)', height=34)
+                configuration='vertical2',
+                ps=[(1, 50, 100), (2, 50, 100)],
+            )) as sender:
+                self.pull_button = cmds.button(
+                    label='Import to Maya', height=34,
+                )
+                self.push_button = cmds.button(
+                    label='Send to Blender (Selection)', height=34,
+                )
 
             with LayoutManager(cmds.columnLayout(
-                                                            adjustableColumn=True,
-                                                            rowSpacing=7
-                                                        )) as fudder:
+                adjustableColumn=True, rowSpacing=7,
+            )) as footer:
                 cmds.separator(height=6, style='none')
                 cmds.text(label='Log', align='left', font='boldLabelFont')
+
             self.log = cmds.scrollField(
-                    editable=False, wordWrap=True, height=95, text=''
-                )
+                editable=False, wordWrap=True, height=95, text='',
+            )
 
         cmds.formLayout(
             root, edit=True,
             af=[
-                (headder, 'left', 5),
-                (headder, 'right', 5),
-                (headder, 'top', 2),
-                (BlenderConnect, 'left', 5),
-                (BlenderConnect, 'right', 5),
-                (workSpace, 'left', 5),
-                (workSpace, 'right', 5),
-                (workSpaceEditor, 'left', 5),
-                (workSpaceEditor, 'right', 5),
-                (refreshButton, 'left', 5),
-                (refreshButton, 'right', 5),
-                (fbxOptions, 'left', 5),
-                (fbxOptions, 'right', 5),
-                (Sender, 'left', 5),
-                (Sender, 'right', 5),
-                (fudder, 'left', 5),
-                (fudder, 'right', 5),
+                (header, 'left', 5),
+                (header, 'right', 5),
+                (header, 'top', 2),
+                (blender_connect, 'left', 5),
+                (blender_connect, 'right', 5),
+                (workspace, 'left', 5),
+                (workspace, 'right', 5),
+                (workspace_editor, 'left', 5),
+                (workspace_editor, 'right', 5),
+                (refresh_section, 'left', 5),
+                (refresh_section, 'right', 5),
+                (fbx_options, 'left', 5),
+                (fbx_options, 'right', 5),
+                (sender, 'left', 5),
+                (sender, 'right', 5),
+                (footer, 'left', 5),
+                (footer, 'right', 5),
                 (self.log, 'left', 5),
                 (self.log, 'right', 5),
-                (self.log, 'bottom', 5)
+                (self.log, 'bottom', 5),
             ],
             ac=[
-                (BlenderConnect, 'top', 0, headder),
-                (workSpace, 'top', 0, BlenderConnect),
-                (workSpaceEditor, 'top', 0, workSpace),
-                (refreshButton, 'top', 0, workSpaceEditor),
-                (fbxOptions, 'top', 0, refreshButton),
-                (Sender, 'top', 0, fbxOptions),
-                (fudder, 'top', 0, Sender),
-                (self.log, 'top', 0, fudder),
+                (blender_connect, 'top', 0, header),
+                (workspace, 'top', 0, blender_connect),
+                (workspace_editor, 'top', 0, workspace),
+                (refresh_section, 'top', 0, workspace_editor),
+                (fbx_options, 'top', 0, refresh_section),
+                (sender, 'top', 0, fbx_options),
+                (footer, 'top', 0, sender),
+                (self.log, 'top', 0, footer),
             ],
         )
-                
 
     def bind(self, **handlers):
         """Register controller callbacks, ignoring maya.cmds callback arguments."""

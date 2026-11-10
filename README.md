@@ -1,4 +1,4 @@
-# Blender MeshPort v0.6
+# Blender MeshPort v1.0.0
 
 Maya <-> Blender FBX transfer using the Blender Lab MCP add-on TCP listener.
 The UI uses **maya.cmds only** (no PySide, shiboken, or QSettings). Maya 2024/2025 intended.
@@ -20,7 +20,7 @@ After editing files, no Maya restart is needed:
 
 ```python
 import blender_meshport
-blender_meshport.reload()
+blender_meshport.show(reload=True)
 ```
 
 For a standalone launch script, execute `launch_maya.py` from Maya.
@@ -89,3 +89,23 @@ module.show(reload=True)
 The previous `reload()` entry point still works for compatibility, but
 `blender_meshport.show(reload=True)` is preferred. `show()` retains the default
 non-reloading behavior. The UI remains `maya.cmds` only.
+
+## v1.0.0 — Refactoring (Phase A + Phase B)
+
+- Preserves the user-edited `maya.cmds` UI layout and the existing MVC structure.
+- Consolidates controller command failures and keeps the preflight connection check.
+- Uses `FBXPushSettings` / `FBXPopSettings` around Maya FBX exports and imports
+  (even on exceptions); preserves Maya selection after FBX export.
+- Restores Blender's selected/active objects and attempts to restore the
+  original mode after Blender FBX export. Some Blender contexts cannot restore
+  a mode; those failures are ignored during cleanup.
+- Reloads Python modules before closing the current window so a reload
+  exception does not immediately destroy the existing UI.
+- Updates the window version to v1.0.0 and adds isolated unit tests.
+
+**Release validation:** Static Python compilation and mocked tests are included.
+Maya/Blender end-to-end FBX transfer and the exact layout in Maya require
+manual verification before publishing a production-ready release.
+
+**Scope:** Phase C (GitHub packaging, license, public-release documentation)
+was not included in this refactoring.
