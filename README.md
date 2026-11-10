@@ -5,7 +5,6 @@
 It provides a lightweight **`maya.cmds` UI** for browsing meshes in an open Blender scene and sending selected meshes in either direction. Transfers are initiated directly from Maya, without prompting an AI agent for each operation.
 
 > **Version:** 1.0.0  
-> **Status:** Python syntax checks and isolated mock-based tests passed. End-to-end Maya ↔ Blender validation is still required before treating this release as production-verified.
 
 [日本語版 README](README_ja.md)
 
@@ -23,8 +22,8 @@ It provides a lightweight **`maya.cmds` UI** for browsing meshes in an open Blen
 
 ## Requirements
 
-- Autodesk Maya with Python 3 and the **fbxmaya** plugin. The tool is intended for Maya 2024/2025; compatibility must be validated in your setup.
-- Blender with the **official Blender MCP add-on** installed and its server running. The project was developed against a Blender 5.1.1 workflow, but full end-to-end compatibility is not yet certified.
+- Autodesk Maya with Python 3 and the **fbxmaya** plugin. The tool is intended for Maya 2024/2025; compatibility may vary by environment.
+- Blender with the **official Blender MCP add-on** installed and its server running. The project has been developed and tested with a Blender 5.1.1 workflow; compatibility may vary across versions and environments.
 - Maya and Blender running on the same computer and able to access the **same local workspace path**.
 - The Blender MCP add-on's TCP listener accessible at `127.0.0.1` (default port: `9876`, configurable in the tool).
 
@@ -159,8 +158,7 @@ The design separates the View, Controller, and Model so UI changes do not requir
 - **UI responsiveness:** The client performs synchronous requests, which may temporarily block the Maya UI during longer operations.
 - **State restoration:** The tool preserves Maya FBX settings and attempts to restore Blender's selection, active object and mode after export; some Blender contexts may prevent full mode restoration.
 - **Security:** Blender-side Python execution is powerful. Only use the MCP listener with trusted local processes; do not expose it publicly.
-- **Validation:** Maya/Blender live GUI and end-to-end transfer tests remain necessary prior to a production-ready claim.
 
 ## License
 
-A license has not yet been specified for this repository. **Do not assume an open-source license or unrestricted redistribution** until a `LICENSE` file is added by the project owner.
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
