@@ -1,111 +1,166 @@
-# Blender MeshPort v1.0.0
+# Blender MeshPort
 
-Maya <-> Blender FBX transfer using the Blender Lab MCP add-on TCP listener.
-The UI uses **maya.cmds only** (no PySide, shiboken, or QSettings). Maya 2024/2025 intended.
+**Blender MeshPort** is a Maya tool for exchanging mesh data with Blender through the [official Blender MCP add-on](https://projects.blender.org/lab/blender_mcp) and FBX files.
 
-## Install and launch
+It provides a lightweight **`maya.cmds` UI** for browsing meshes in an open Blender scene and sending selected meshes in either direction. Transfers are initiated directly from Maya, without prompting an AI agent for each operation.
 
-1. Unzip this distribution into a folder such as `C:\Tools\BlenderMeshPort`.
-2. In Blender, run the official Blender MCP add-on server (typically 127.0.0.1:9876).
-3. In Maya's Script Editor (Python):
+> **Version:** 1.0.0  
+> **Status:** Python syntax checks and isolated mock-based tests passed. End-to-end Maya ↔ Blender validation is still required before treating this release as production-verified.
+
+[日本語版 README](README_ja.md)
+
+## Features
+
+- **Connection check:** Verify that Blender's MCP add-on responds to a Python execution request. Displays the Blender version and current scene.
+- **Blender mesh browser:** List mesh objects in the active Blender scene, including vertex and face counts; select multiple meshes to import.
+- **Blender → Maya:** Export selected Blender mesh objects to FBX and import them into Maya.
+- **Maya → Blender:** Export only the currently selected Maya mesh transforms (or selected mesh shapes) to FBX and import them into Blender.
+- **Simplified FBX options:** Include Bones / Skin, Embed Textures, and Include Animation.
+- **Persistent workspace:** Keep transfer FBX files and any importer-extracted associated files; no automatic deletion.
+- **Shelf installation:** Drag `install.py` into Maya to create a button on the active shelf.
+- **Reload without restarting Maya:** Launch using `blender_meshport.show(reload=True)` to reload Python modules.
+- **Native Maya UI:** Uses `maya.cmds`, not PySide, Shiboken, or `QSettings` directly.
+
+## Requirements
+
+- Autodesk Maya with Python 3 and the **fbxmaya** plugin. The tool is intended for Maya 2024/2025; compatibility must be validated in your setup.
+- Blender with the **official Blender MCP add-on** installed and its server running. The project was developed against a Blender 5.1.1 workflow, but full end-to-end compatibility is not yet certified.
+- Maya and Blender running on the same computer and able to access the **same local workspace path**.
+- The Blender MCP add-on's TCP listener accessible at `127.0.0.1` (default port: `9876`, configurable in the tool).
+
+**Communication note:** MeshPort talks directly to the Blender MCP add-on's local TCP interface, using its NUL-terminated JSON protocol. It is **not** a general-purpose MCP stdio client. Changes in the add-on's internal transport may require code updates.
+
+## Installation
+
+1. Extract the project so that `blender_meshport` remains a Python package containing `__init__.py` and `install.py`.
+2. Start Maya and select the shelf tab where you want the button.
+3. Drag **`blender_meshport/install.py`** from your file browser onto Maya's viewport.
+4. A **BMP / MeshPort** shelf button will be created. Click it to launch the tool.
+5. In Blender, enable and start the official Blender MCP add-on server.
+6. In MeshPort, set the TCP port if needed and choose a **Workspace Folder** before transferring files.
+
+Reinstalling onto the same shelf replaces the existing MeshPort button with the same installer tag. The shelf command stores an **absolute installation path**; if you move the package, drag `install.py` into Maya again.
+
+### Manual launch
+
+Add the folder **containing** `blender_meshport` to Python's module search path:
 
 ```python
 import sys
-sys.path.insert(0, r'C:\Tools\BlenderMeshPort')
+
+root = r"C:\Tools\BlenderMeshPort"
+if root not in sys.path:
+    sys.path.insert(0, root)
+
 import blender_meshport
 blender_meshport.show()
 ```
 
-After editing files, no Maya restart is needed:
+To reload changes without restarting Maya:
 
 ```python
 import blender_meshport
 blender_meshport.show(reload=True)
 ```
 
-For a standalone launch script, execute `launch_maya.py` from Maya.
+## Usage
 
-## UI
+### 1. Connect to Blender
 
-- Check Connection verifies Blender's Python execution and returns its version and scene name.
-- Refresh Blender Mesh List displays mesh names, vertices and face counts. Multi-select rows to import to Maya.
-- Send Selected Maya Mesh to Blender exports only the current Maya selection.
-- FBX options: Include Bones / Skin, Embed Textures, Include Animation.
-- Workspace location is stored in `cmds.optionVar('BlenderMeshPort_workspace_path')`.
-- Port is stored in `cmds.optionVar('BlenderMeshPort_port')`.
-
-The files are kept:
+Start the Blender MCP add-on server, then click **Check Connection** in MeshPort. A successful connection shows a message similar to:
 
 ```text
-<workspace>/
-  transfers_Maya2Blender/transfer_M2B_<uuid>.fbx
-  transfers_Blender2Maya/transfer_B2M_<uuid>.fbx
+Connected: Blender 5.1.1 | Scene
 ```
 
-FBX extraction may create `<fbx_stem>.fbm` beside the imported file. It is not deleted.
+The tool also checks the connection automatically before communication-dependent operations. An unsuccessful check produces a warning.
 
-## Migration
+### 2. List Blender meshes
 
-This is a renamed package. Replace the old `bridge` package with `blender_meshport` and update Maya launch commands. Existing Qt `QSettings` workspace values are **not automatically imported**, to keep a strict no-Qt dependency; choose the workspace once in v0.6. The value is persisted through Maya optionVars thereafter.
+Click **Refresh Blender Mesh List**. The list displays mesh object names and their vertex/face counts. Select one or more rows for transfer.
 
-## Structure
+### 3. Import from Blender to Maya
 
-- `view.py`: cmds GUI only
-- `controller.py`: event routing and status/error handling
-- `model.py`: TCP protocol and transfer orchestration
-- `blender_commands.py`: Blender code templates
-- `maya_fbx.py`: Maya FBX I/O
-- `settings.py`: optionVar persistence
-- `config.py`: defaults
+1. Set the **Workspace Folder**.
+2. Refresh the Blender mesh list and select the target meshes.
+3. Set the FBX options as needed.
+4. Click **Import to Maya**.
 
-## Notes
+MeshPort asks Blender to export an FBX into the shared workspace, then imports that FBX into Maya (using the `BlenderMeshPort` namespace).
 
-- Blender MCP's underlying transport is NUL-terminated JSON, not the MCP stdio protocol.
-- Requires the same local filesystem accessible to both DCC applications.
-- FBX material/texture/skin/animation portability remains dependent on exporter/importer settings.
-- The Maya UI and full transfers require manual validation on an installed Maya and Blender. Unit tests do not substitute for an end-to-end transfer.
+### 4. Send from Maya to Blender
 
-## v0.7 — Drag-and-drop shelf installer
+1. In Maya, select the desired **mesh transforms or mesh shapes**. Only selected meshes are targeted; selecting a parent group alone does not automatically mean all descendant meshes will be exported.
+2. Set the **Workspace Folder** and FBX options.
+3. Click **Send to Blender (Selection)**.
 
-Drag **`blender_meshport/install.py`** (inside the package folder) onto Maya's
-viewport. A **BMP** button appears on the currently selected Maya shelf.
-Dropping it again onto the same shelf replaces that button, avoiding duplicates.
-Keep the installed folder in the same place, since the shelf button stores its
-absolute location. Maya itself can save the shelf on exit as usual.
+MeshPort exports the current Maya mesh selection (plus related joints when enabled), then asks Blender to import the FBX.
 
-The button runs the equivalent of:
+### FBX options
 
-```python
-import sys
-import importlib
-parent_folder = r'C:\Tools\BlenderMeshPort'
-if parent_folder not in sys.path:
-    sys.path.insert(0, parent_folder)
-module = importlib.import_module('blender_meshport')
-module = importlib.reload(module)
-module.show(reload=True)
+| Option | Purpose |
+| --- | --- |
+| **Include Bones / Skin** | Include relevant skeleton/skin information where supported by the FBX exporter/importer. |
+| **Embed Textures (FBX)** | Request embedded textures in the exported FBX; actual material/texture portability depends on both applications. |
+| **Include Animation** | Enable FBX animation export/import behavior. |
+
+Embedded textures **may** be extracted to a sibling `<fbx_filename>.fbm` directory by an importer. This behavior is importer-dependent; the tool does not create or delete `.fbm` folders itself.
+
+## Workspace layout
+
+Choose a workspace directory in the GUI. Transfer files are retained with unique names:
+
+```text
+Workspace/
+├── transfers_Maya2Blender/
+│   ├── transfer_M2B_<unique-id>.fbx
+│   └── transfer_M2B_<unique-id>.fbm/   # if created by the importer
+└── transfers_Blender2Maya/
+    ├── transfer_B2M_<unique-id>.fbx
+    └── transfer_B2M_<unique-id>.fbm/   # if created by the importer
 ```
 
-The previous `reload()` entry point still works for compatibility, but
-`blender_meshport.show(reload=True)` is preferred. `show()` retains the default
-non-reloading behavior. The UI remains `maya.cmds` only.
+**MeshPort does not automatically clean up transfer files.** Existing references may point to extracted textures, so review dependencies before deleting files manually. As transfers accumulate, disk usage increases.
 
-## v1.0.0 — Refactoring (Phase A + Phase B)
+Workspace and port preferences are saved using Maya `cmds.optionVar` (`BlenderMeshPort_workspace_path` and `BlenderMeshPort_port`). Settings previously stored with Qt `QSettings` are **not migrated automatically**.
 
-- Preserves the user-edited `maya.cmds` UI layout and the existing MVC structure.
-- Consolidates controller command failures and keeps the preflight connection check.
-- Uses `FBXPushSettings` / `FBXPopSettings` around Maya FBX exports and imports
-  (even on exceptions); preserves Maya selection after FBX export.
-- Restores Blender's selected/active objects and attempts to restore the
-  original mode after Blender FBX export. Some Blender contexts cannot restore
-  a mode; those failures are ignored during cleanup.
-- Reloads Python modules before closing the current window so a reload
-  exception does not immediately destroy the existing UI.
-- Updates the window version to v1.0.0 and adds isolated unit tests.
+## Architecture
 
-**Release validation:** Static Python compilation and mocked tests are included.
-Maya/Blender end-to-end FBX transfer and the exact layout in Maya require
-manual verification before publishing a production-ready release.
+```text
+blender_meshport/
+├── __init__.py          # launch and module reload
+├── install.py           # Maya drag-and-drop shelf installer
+├── config.py            # connection defaults / version label
+├── settings.py          # Maya optionVar persistence
+├── view.py              # maya.cmds user interface
+├── controller.py        # UI events, checks and errors
+├── model.py             # TCP communication and transfer orchestration
+├── blender_commands.py  # Blender-side Python command generation
+└── maya_fbx.py          # Maya FBX import/export
+```
 
-**Scope:** Phase C (GitHub packaging, license, public-release documentation)
-was not included in this refactoring.
+The design separates the View, Controller, and Model so UI changes do not require rewriting transport or FBX code.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Connection refused (`WinError 10061`) | Verify that the Blender MCP server is **running** and the host/port match. |
+| TCP connects, but the request times out | Check that Blender is responsive, and that its MCP add-on version supports the expected TCP request/response protocol. |
+| Blender mesh list is empty | Check the active Blender scene for mesh objects and refresh the list. |
+| FBX cannot be transferred | Check the workspace path, write permissions, shared filesystem access, and Maya's `fbxmaya` plugin. |
+| Textures are missing | Confirm the Embed Textures option and inspect importer-created material paths / `.fbm` folders; embedded media is not guaranteed for every material. |
+| Shelf button stops working after moving files | Drag `install.py` into Maya again so it records the new absolute path. |
+
+## Known limitations
+
+- **Local-only transport:** The code restricts the TCP host to localhost and assumes a shared filesystem.
+- **FBX interchange:** Differences in material graphs, rigs, skin weights, animation and axis/unit handling may need manual adjustment.
+- **UI responsiveness:** The client performs synchronous requests, which may temporarily block the Maya UI during longer operations.
+- **State restoration:** The tool preserves Maya FBX settings and attempts to restore Blender's selection, active object and mode after export; some Blender contexts may prevent full mode restoration.
+- **Security:** Blender-side Python execution is powerful. Only use the MCP listener with trusted local processes; do not expose it publicly.
+- **Validation:** Maya/Blender live GUI and end-to-end transfer tests remain necessary prior to a production-ready claim.
+
+## License
+
+A license has not yet been specified for this repository. **Do not assume an open-source license or unrestricted redistribution** until a `LICENSE` file is added by the project owner.
